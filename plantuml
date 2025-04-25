@@ -1,24 +1,26 @@
 @startuml
 start
-:Start scrape_and_save;
-repeat
-  :scrape_image_url(url);
-  -> Success;
-  if (final_url valid?) then (yes)
-    :download_image(final_url, image_path);
-    if (Download success?) then (yes)
-      :Return True;
-      stop
-    else (no)
-      :Return False;
-      stop
-    endif
+:Call scrape_and_save(url, image_path);
+:Invoke scrape_image_url(url);
+
+if (regex match found?) then (yes)
+  :Extract image_url and compute final_url;
+else (no)
+  :final_url = None;
+endif
+
+if (final_url != null?) then (yes)
+  :Invoke download_image(final_url, image_path);
+  if (response OK?) then (yes)
+    :Write file to disk;
+    ->[return True]
   else (no)
-    :Return False;
-    stop
+    :Print error;
+    ->[return False]
   endif
--> Exception;
-:Print Scrape Error;
-:Return False;
+else (no)
+  ->[return False]
+endif
+
 stop
 @enduml
