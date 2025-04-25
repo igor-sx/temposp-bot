@@ -1,3 +1,6 @@
+# Weather Data Scraping Flowchart
+
+```mermaid
 flowchart TD
     A([Start]) --> B["Define target URL\n'https://www.cgesp.org/...'"]
     B --> C["Send HTTP GET request\n(requests.get)"]
@@ -21,3 +24,4 @@ flowchart TD
     style M fill:#e74c3c,stroke:#c0392b
     style B,C,D,E,F,H,I,J,K fill:#3498db,stroke:#2980b9
     style G fill:#f39c12,stroke:#e67e22
+```
