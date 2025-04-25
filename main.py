@@ -2,9 +2,12 @@ import re
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+import os
+#from urllib.request import urlretrieve
 
 url = 'https://www.cgesp.org/v3//estacoes-meteorologicas.jsp'
-def get_css(url):
+
+def scrape_image_url(url): #todo: better error handling
     html = requests.get(url)
     bs = BeautifulSoup(html.text, 'html.parser')
     backgroundImage = bs.find('style').text #finds the style tag and extracts the full text
@@ -19,6 +22,25 @@ def get_css(url):
         final_url = None
     return final_url
 
-if __name__ == '__main__':
-    test = get_css(url)
-    print(f"fullurl: {test}")
+def download_image(final_url, save_path):
+    try:
+        response = requests.get(final_url)
+        response.raise_for_status() #raise an exception if unsuccessful
+        #if response.status_code == 200:  #not needed as the exception is raised above, if unsuccessful
+        with open (save_path, 'wb') as f:
+            f.write(response.content)
+        return True
+    except Exception as e:
+        print(f"Error downloading image: {e}")
+        return False
+    
+def scrape_and_save(url, image_path):
+    try:
+        fileurl = scrape_image_url(url)
+        if fileurl: #check for a valid url
+            sucess = download_image(fileurl, image_path)
+            return sucess
+        return False
+    except Exception as e:
+        print(f"Error scraping image URL: {e}")
+        return False
