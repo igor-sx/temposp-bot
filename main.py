@@ -69,11 +69,11 @@ def scrape_and_save(url, image_path):
         logging.error(f"Error scraping image URL: {e}")
         return False
 
-def post():
+def post(image_path):
     try:
         client = Client()
         client.login(BLUESKY_USERNAME, BLUESKY_PASSWORD)
-        with open(IMAGE_PATH, 'rb') as f:
+        with open(image_path, 'rb') as f:
             img_data = f.read()
         response = client.send_image(text="TEST", image=img_data, lang='pt-BR')
     except Exception as e:
