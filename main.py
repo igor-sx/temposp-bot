@@ -83,7 +83,7 @@ if __name__ == "__main__":
     target_url = 'https://www.cgesp.org/v3//estacoes-meteorologicas.jsp'
     save_location = os.path.join("tmp", "estacao.png")
     if scrape_and_save(target_url, save_location):
-        logging.error("Image downloaded successfully")
+        logging.info("Image downloaded successfully")
     else:
         logging.error("Failed to download image")
 #todo: test google cloud entry point;
