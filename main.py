@@ -5,31 +5,38 @@ from urllib.parse import urljoin
 import os
 from atproto import Client
 import logging
+#from typing import Optional # will be using | operator instead 
 #from urllib.request import urlretrieve
-#this script scrapes the image file from the weather page and post to bluesky through its API using atproto library
+#this script scrapes the image file from the weather page and post to bluesky through
+#its API using atproto library
 #hosting on google cloud platform with cloud scheduler
- 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+LOG_FORMAT = '%(asctime)s - %(levelname)s - %(message)s'
+logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
 BLUESKY_USERNAME = os.getenv('BLUESKY_USERNAME')
 BLUESKY_PASSWORD = os.getenv('BLUESKY_PASSWORD')
 
 url = 'https://www.cgesp.org/v3//estacoes-meteorologicas.jsp'
 
-def scrape_image_url(url):
+def scrape_image_url(url: str) -> str | None:
+    """Start scraping, parses the html, performs
+    regex and return the image url as str or None if not found"""
     try:
         html = requests.get(url)
         html.raise_for_status()
         bs = BeautifulSoup(html.text, 'html.parser')
-        style_tag = bs.find('style') #finds the style tag and extracts the full text
+        style_tag = bs.find('style')
         if not style_tag:
             logging.error("style tag not found")
         backgroundImage = style_tag.text
         
-        image_url = None #variable to store the image full url
-        match = re.search(r"\.condTempo\s*\{.*?background.*?:.*?url\((.*?)\)", backgroundImage, re.IGNORECASE | re.DOTALL) #regex to tind the specific file url
+        image_url = None
+        match = re.search(r"\.condTempo\s*\{.*?background.*?:.*?url\((.*?)\)", 
+        backgroundImage,
+        re.IGNORECASE | re.DOTALL)
         if match:
-            image_url = match.group(1).strip().strip("'\"") #assigns the regex result to image_url var
-            final_url = urljoin(url, image_url) #joins the base url with the image url, providing the full path to the file
+            image_url = match.group(1).strip().strip("'\"")
+            final_url = urljoin(url, image_url)
             logging.info(f"found image url: {final_url}")
             return final_url
         else:
@@ -49,8 +56,7 @@ def download_image(final_url, save_path):
         if save_dir:
             os.makedirs(save_dir, exist_ok=True)
         response = requests.get(final_url)
-        response.raise_for_status() #raise an exception if unsuccessful
-        #if response.status_code == 200:  #not needed as the exception is raised above, if unsuccessful
+        response.raise_for_status()
         with open (save_path, 'wb') as f:
             f.write(response.content)
         return True
@@ -58,12 +64,24 @@ def download_image(final_url, save_path):
         logging.error(f"Error downloading image: {e}")
         return False
     
-def scrape_and_save(url, image_path):
+def scrape_and_save(url: str, image_path: str) -> bool:
+    """Orchestrates scraping image URL and downloading the image file
+    to specified path
+    
+    todo: change download_image to download_image_bytes which will return bytes | None 
+    instead of bool and will not save the file.
+    
+    Rename scrape_and_save to something like run_bot_logic
+    new orchestrator function call scrape_image_url
+    If successful, call download_image_bytes; call post_to_bluesky (passing the bytes)
+    
+    might not need to return bool
+    """
     try:
         fileurl = scrape_image_url(url)
-        if fileurl: #check for a valid url
-            sucess = download_image(fileurl, image_path)
-            return sucess
+        if fileurl:
+            success = download_image(fileurl, image_path)
+            return success
         return False
     except Exception as e:
         logging.error(f"Error scraping image URL: {e}")
