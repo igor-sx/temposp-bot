@@ -50,7 +50,14 @@ def scrape_image_url(url: str) -> str | None:
         return None
         
 
-def download_image(final_url, save_path):
+def download_image(final_url: str, save_path: str) -> bool:
+    """Save image file to specified path, returns a either True or False if
+    successful or not.
+    
+    Args: 
+        final_url: direct url to image file to be downloaded
+        save_path: path to save the image file
+    Returns: either true or false for success or failure"""
     try:
         save_dir = os.path.dirname(save_path)
         if save_dir:
@@ -87,21 +94,41 @@ def scrape_and_save(url: str, image_path: str) -> bool:
         logging.error(f"Error scraping image URL: {e}")
         return False
 
-def post(image_path):
+def post(image_path: str) -> str | None:
+    """Post the image file using atproto lib with os env var credentials, language,
+    and text"""
+    post_uri = None
+    if not BLUESKY_PASSWORD or not BLUESKY_USERNAME:
+        logging.error("Bluesky credentials not set")
+        return None
     try:
         client = Client()
         client.login(BLUESKY_USERNAME, BLUESKY_PASSWORD)
         with open(image_path, 'rb') as f:
             img_data = f.read()
-        response = client.send_image(text="TEST", image=img_data, lang='pt-BR')
+            response_obj = client.send_image(text="TEST", image=img_data, lang='pt-BR')
+            if hasattr(response_obj, 'uri'):
+                post_uri = response_obj.uri
+                logging.info(f"Image posted successfully: {post_uri}")
+            else:
+                logging.warning(f"Post OK but could not retrieve URI from response")
+                post_uri = None
+    except FileNotFoundError:
+        logging.error(f"File not found at {image_path}")
     except Exception as e:
         logging.error(f"Error posting image: {e}")
+    return post_uri
 
 if __name__ == "__main__":
     target_url = 'https://www.cgesp.org/v3//estacoes-meteorologicas.jsp'
     save_location = os.path.join("tmp", "estacao.png")
     if scrape_and_save(target_url, save_location):
-        logging.info("Image downloaded successfully")
+        logging.info("Image downloaded successfully. Starting post...")
+        post_result_uri = post(save_location)
+        if post_result_uri:
+            logging.info(f"Image posted successfully: {post_result_uri}")
+        else:
+            logging.error("Failed to post image")
     else:
-        logging.error("Failed to download image")
+        logging.error("Image download was not successful. Aborting...")
 #todo: test google cloud entry point;

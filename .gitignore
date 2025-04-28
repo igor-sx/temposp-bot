@@ -12,3 +12,9 @@ venv/
 .DS_Store
 /tests
 env
+.pytest_cache/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.txt
