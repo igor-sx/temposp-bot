@@ -3,9 +3,9 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 import os
-from atproto import Client
+from atproto import Client, models
 import logging
-from PIL import Image
+#from PIL import Image
 import io
 
 #from typing import Optional # will be using | operator instead 
@@ -73,7 +73,7 @@ def download_image_bytes(final_url: str) -> bytes | None:
         logging.error(f"Unexpected error fetching image: {e}")
         return None
 
-def post(image_data: bytes) -> str | None:
+def post(image_data: bytes, target_width: int = 16, target_height: int = 9) -> str | None:
     """Post the image file using atproto lib with os env var credentials, language,
     and text.
     Args:       image_data: bytes of the image file to be posted
@@ -85,9 +85,13 @@ def post(image_data: bytes) -> str | None:
     try:
         client = Client()
         client.login(BLUESKY_USERNAME, BLUESKY_PASSWORD)
+        aspect_ratio_object = models.AppBskyEmbedDefs.AspectRatio(
+            width=target_width,
+            height=target_height
+        )
         #bytes_data = io.BytesIO(image_data)
         #bytes_data.name = 'upload.png' #check if it needs a bin stream or can raw like:
-        response_obj = client.send_image(text="test", image=image_data, lang='pt-BR')
+        response_obj = client.send_image(text="test", image=image_data, langs=['pt-BR'], image_alt="imagem do tempo", image_aspect_ratio=aspect_ratio_object)
         if hasattr(response_obj, 'uri'):
             post_uri = response_obj.uri
             logging.info(f"Image posted successfully: {post_uri}")
@@ -120,15 +124,24 @@ def run_bot_logic(url: str) -> str | None:
         logging.error("Scraping failed, aborting...")
         return None
 
-if __name__ == "__main__": #todo rewrite this entire function to match run_bot_logic
-    target_url = 'https://www.cgesp.org/v3//estacoes-meteorologicas.jsp'
-    if scrape_and_save(target_url, save_location):
-        logging.info("Image downloaded successfully. Starting post...")
-        post_result_uri = post(save_location)
-        if post_result_uri:
-            logging.info(f"Image posted successfully: {post_result_uri}")
-        else:
-            logging.error("Failed to post image")
+def cloud_entry_point(request):
+    """Google Cloud Function entry point via Cloud Scheduler
+    Args:       request: required by GCP via http but not used here
+    Returns:    str of the post URI or None if failed.
+    """
+    logging.info("Cloud function triggered...")
+    post_uri = run_bot_logic(url)
+    if post_uri:
+        logging.info(f"Post successful: {post_uri}")
+        return f"Post successful: {post_uri}", 200
     else:
-        logging.error("Image download was not successful. Aborting...")
-#todo: test google cloud entry point;
+        logging.error("Post failed")
+        return "Post failed", 500
+# --- Main function for local testing ---
+if __name__ == "__main__":
+    logging.info("Starting script...")
+    post_uri = run_bot_logic(url)
+    if post_uri:
+        logging.info(f"Post successful: {post_uri}")
+    else:
+        logging.error("Post failed")
