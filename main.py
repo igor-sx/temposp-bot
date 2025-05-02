@@ -5,8 +5,8 @@ from urllib.parse import urljoin
 import os
 from atproto import Client, models
 import logging
-#from PIL import Image
 import io
+from openai import OpenAI
 
 #from typing import Optional # will be using | operator instead 
 #from urllib.request import urlretrieve
@@ -18,6 +18,7 @@ LOG_FORMAT = '%(asctime)s - %(levelname)s - %(message)s'
 logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
 BLUESKY_USERNAME = os.getenv('BLUESKY_USERNAME')
 BLUESKY_PASSWORD = os.getenv('BLUESKY_PASSWORD')
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 url = 'https://www.cgesp.org/v3//estacoes-meteorologicas.jsp'
 news_url = 'https://www.cgesp.org/v3//noticias.jsp'
@@ -53,7 +54,7 @@ def scrape_image_url(url: str) -> str | None:
         logging.error(f"Error scraping image url: {e}")
         return None
         
-#character limit: 2200:
+
 def scrape_news_url(news_url: str) -> str | None:
     try:
         html = requests.get(news_url)
@@ -64,12 +65,57 @@ def scrape_news_url(news_url: str) -> str | None:
             logging.error("No news block found")
             return None
         news_text = news_tag.get_text(strip=True, separator=' ')
-        news = news_text[:200]
+        news = news_text[:2200]
         return news
     except requests.exceptions.RequestException as e:
         logging.error(f"Error fetching news url: {news_url}: {e}")
         return None
 
+def summarize_text(news_text: str) -> str | None:
+    try:
+        client = OpenAI()
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Summarize the text the user will provide, keeping the main weather data and any alert or high importance data, if there is any. The result should be a short text that can fit a microblog post matching the original language (Brazilian-Portuguese). Aim for the maximum of 300 characers. Mantenha qualquer alerta ou informação de alta importância presente. Use abreviações se necessário. Foque nas médias quando providas."
+                        }
+                    ]
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": news_text
+                        }
+                    ]
+                }
+            ],
+            response_format={
+                "type": "text"
+            },
+            temperature=0.45,
+            max_completion_tokens=460,
+            top_p=0.95,
+            frequency_penalty=0,
+            presence_penalty=0,
+            store=False
+        )
+        if response.choices and response.choices[0].message:
+            summary = response.choices[0].message.content.strip()
+            logging.info("Text summarized successfully.")
+            return summary
+        else:
+            logging.error("No summary content found in OpenAI response.")
+            return None
+    except Exception as e:
+        logging.error(f"Error summarizing text with OpenAI: {e}")
+        return None
 
 def download_image_bytes(final_url: str) -> bytes | None:
     """Download image file from url and return the bytes of the image
@@ -91,7 +137,8 @@ def download_image_bytes(final_url: str) -> bytes | None:
         logging.error(f"Unexpected error fetching image: {e}")
         return None
 
-def post(image_data: bytes, news_text: str, target_width: int = 16, target_height: int = 9) -> str | None:
+def post(image_data: bytes, news_summary: str, target_width: int = 16, 
+         target_height: int = 9) -> str | None:
     """Post the image file using atproto lib with os env var credentials, language,
     and text.
     Args:       image_data: bytes of the image file to be posted
@@ -107,10 +154,13 @@ def post(image_data: bytes, news_text: str, target_width: int = 16, target_heigh
             width=target_width,
             height=target_height
         )
-        post_text = news_text if news_text else " "
+        post_text = news_summary if news_summary else " "
         #bytes_data = io.BytesIO(image_data)
         #bytes_data.name = 'upload.png' #check if it needs a bin stream or can raw like:
-        response_obj = client.send_image(text=post_text, image=image_data, langs=['pt-BR'], image_alt="imagem do tempo", image_aspect_ratio=aspect_ratio_object)
+        response_obj = client.send_image(
+            text=post_text, image=image_data, langs=['pt-BR'], 
+            image_alt="foto do céu de são paulo mostrando a situação atual", 
+            image_aspect_ratio=aspect_ratio_object)
         if hasattr(response_obj, 'uri'):
             post_uri = response_obj.uri
             logging.info(f"Image posted successfully: {post_uri}")
@@ -129,16 +179,17 @@ def run_bot_logic(url: str) -> str | None:
     Returns:    str of the post URI or None if failed.
     """
     logging.info("Starting bot logic...")
-    image_data = None #must initizalize this var?
+    image_data = None
     post_uri = None
     scraped_text = scrape_news_url(news_url)
     scraped = scrape_image_url(url)
+    news_summary = summarize_text(scraped_text)
     if scraped: #if scraped ran successfully, then proceed passing the url ahead
         image_data = download_image_bytes(scraped)
         if not image_data: #calls the download function, stores the bytes
             logging.error("Image download failed, aborting...")
             return None
-        post_uri = post(image_data, scraped_text) #must inialize this var (?) to call post with the bytes data
+        post_uri = post(image_data, news_summary)
         return post_uri #returns the post uri or None if failed
     else:
         logging.error("Scraping failed, aborting...")
@@ -157,7 +208,7 @@ def cloud_entry_point(request):
     else:
         logging.error("Post failed")
         return "Post failed", 500
-# --- Main function for local testing ---
+#Main function for local testing
 if __name__ == "__main__":
     logging.info("Starting script...")
     post_uri = run_bot_logic(url)
