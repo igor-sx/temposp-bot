@@ -20,6 +20,7 @@ BLUESKY_USERNAME = os.getenv('BLUESKY_USERNAME')
 BLUESKY_PASSWORD = os.getenv('BLUESKY_PASSWORD')
 
 url = 'https://www.cgesp.org/v3//estacoes-meteorologicas.jsp'
+news_url = 'https://www.cgesp.org/v3//noticias.jsp'
 
 def scrape_image_url(url: str) -> str | None:
     """Start scraping, parses the html, performs
@@ -52,6 +53,23 @@ def scrape_image_url(url: str) -> str | None:
         logging.error(f"Error scraping image url: {e}")
         return None
         
+#character limit: 2200:
+def scrape_news_url(news_url: str) -> str | None:
+    try:
+        html = requests.get(news_url)
+        html.raise_for_status()
+        soup = BeautifulSoup(html.text, "html.parser")
+        news_tag = soup.find("div", class_="noticia")
+        if not news_tag:
+            logging.error("No news block found")
+            return None
+        news_text = news_tag.get_text(strip=True, separator=' ')
+        news = news_text[:200]
+        return news
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Error fetching news url: {news_url}: {e}")
+        return None
+
 
 def download_image_bytes(final_url: str) -> bytes | None:
     """Download image file from url and return the bytes of the image
@@ -73,7 +91,7 @@ def download_image_bytes(final_url: str) -> bytes | None:
         logging.error(f"Unexpected error fetching image: {e}")
         return None
 
-def post(image_data: bytes, target_width: int = 16, target_height: int = 9) -> str | None:
+def post(image_data: bytes, news_text: str, target_width: int = 16, target_height: int = 9) -> str | None:
     """Post the image file using atproto lib with os env var credentials, language,
     and text.
     Args:       image_data: bytes of the image file to be posted
@@ -89,9 +107,10 @@ def post(image_data: bytes, target_width: int = 16, target_height: int = 9) -> s
             width=target_width,
             height=target_height
         )
+        post_text = news_text if news_text else " "
         #bytes_data = io.BytesIO(image_data)
         #bytes_data.name = 'upload.png' #check if it needs a bin stream or can raw like:
-        response_obj = client.send_image(text="test", image=image_data, langs=['pt-BR'], image_alt="imagem do tempo", image_aspect_ratio=aspect_ratio_object)
+        response_obj = client.send_image(text=post_text, image=image_data, langs=['pt-BR'], image_alt="imagem do tempo", image_aspect_ratio=aspect_ratio_object)
         if hasattr(response_obj, 'uri'):
             post_uri = response_obj.uri
             logging.info(f"Image posted successfully: {post_uri}")
@@ -112,13 +131,14 @@ def run_bot_logic(url: str) -> str | None:
     logging.info("Starting bot logic...")
     image_data = None #must initizalize this var?
     post_uri = None
+    scraped_text = scrape_news_url(news_url)
     scraped = scrape_image_url(url)
     if scraped: #if scraped ran successfully, then proceed passing the url ahead
         image_data = download_image_bytes(scraped)
         if not image_data: #calls the download function, stores the bytes
             logging.error("Image download failed, aborting...")
             return None
-        post_uri = post(image_data) #must inialize this var (?) to call post with the bytes data
+        post_uri = post(image_data, scraped_text) #must inialize this var (?) to call post with the bytes data
         return post_uri #returns the post uri or None if failed
     else:
         logging.error("Scraping failed, aborting...")
