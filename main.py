@@ -20,7 +20,7 @@ BLUESKY_USERNAME = os.getenv('BLUESKY_USERNAME')
 BLUESKY_PASSWORD = os.getenv('BLUESKY_PASSWORD')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
-url = 'https://www.cgesp.org/v3//estacoes-meteorologicas.jsp'
+url = 'https://www.cgesp.org/v3//index.jsp'
 news_url = 'https://www.cgesp.org/v3//noticias.jsp'
 
 def scrape_image_url(url: str) -> str | None:
