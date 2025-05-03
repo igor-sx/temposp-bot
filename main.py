@@ -8,12 +8,6 @@ import logging
 import io
 from openai import OpenAI
 
-#from typing import Optional # will be using | operator instead 
-#from urllib.request import urlretrieve
-#this script scrapes the image file from the weather page and post to bluesky through
-#its API using atproto library
-#hosting on google cloud platform with cloud scheduler
-
 LOG_FORMAT = '%(asctime)s - %(levelname)s - %(message)s'
 logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
 BLUESKY_USERNAME = os.getenv('BLUESKY_USERNAME')
@@ -24,8 +18,15 @@ url = 'https://www.cgesp.org/v3//index.jsp'
 news_url = 'https://www.cgesp.org/v3//noticias.jsp'
 
 def scrape_image_url(url: str) -> str | None:
-    """Start scraping, parses the html, performs
-    regex and return the image url as str or None if not found"""
+    """Scrapes the provided URL to find the background image URL within a style tag.
+
+    Args:
+        url: The URL of the page to scrape.
+
+    Returns:
+        The absolute URL of the background image as a string, or None if not found 
+        or an error occurs.
+    """
     try:
         html = requests.get(url)
         html.raise_for_status()
@@ -56,6 +57,15 @@ def scrape_image_url(url: str) -> str | None:
         
 
 def scrape_news_url(news_url: str) -> str | None:
+    """Scrapes the news page URL to extract the latest news text.
+
+    Args:
+        news_url: The URL of the news page.
+
+    Returns:
+        The extracted news text (up to 2200 characters) as a string, or None
+        if not found or an error occurs.
+    """
     try:
         html = requests.get(news_url)
         html.raise_for_status()
@@ -72,6 +82,15 @@ def scrape_news_url(news_url: str) -> str | None:
         return None
 
 def summarize_text(news_text: str) -> str | None:
+    """Summarizes the provided text using the OpenAI API.
+
+    Args:
+        news_text: The text to summarize.
+
+    Returns:
+        The summarized text as a string, or None if an error occurs or the summary 
+        is empty.
+    """
     try:
         client = OpenAI()
         response = client.chat.completions.create(
@@ -82,7 +101,18 @@ def summarize_text(news_text: str) -> str | None:
                     "content": [
                         {
                             "type": "text",
-                            "text": "Summarize the text the user will provide, keeping the main weather data and any alert or high importance data, if there is any. The result should be a short text that can fit a microblog post matching the original language (Brazilian-Portuguese). Aim for the maximum of 300 characers. Mantenha qualquer alerta ou informação de alta importância presente. Use abreviações se necessário. Foque nas médias quando providas."
+                            "text": (
+                                "Summarize the text the user will provide, keeping the "
+                                "main and weather data and any alert or high"
+                                "importance data, if there is any. "
+                                "The result should be a short "
+                                "text that can fit a microblog post matching the "
+                                "original language (Brazilian-Portuguese). Aim for "
+                                "the maximum of 300 characers. Mantenha qualquer "
+                                "alerta ou informação de alta importância presente. "
+                                "Use abreviações se necessário. "
+                                "Foque nas médias quando providas."
+                            )
                         }
                     ]
                 },
@@ -118,9 +148,15 @@ def summarize_text(news_text: str) -> str | None:
         return None
 
 def download_image_bytes(final_url: str) -> bytes | None:
-    """Download image file from url and return the bytes of the image
-    Args:       final_url: direct url to image file to be downloaded
-    Returns:    bytes of the image file or None if failed."""
+    """Downloads an image from the given URL.
+
+    Args:
+        final_url: The direct URL of the image file to download.
+
+    Returns:
+        The image content as bytes, or None if the download fails
+        or the content is not an image.
+    """
     try:
         response = requests.get(final_url)  
         response.raise_for_status()
@@ -139,10 +175,20 @@ def download_image_bytes(final_url: str) -> bytes | None:
 
 def post(image_data: bytes, news_summary: str, target_width: int = 16, 
          target_height: int = 9) -> str | None:
-    """Post the image file using atproto lib with os env var credentials, language,
-    and text.
-    Args:       image_data: bytes of the image file to be posted
-    Returns:    str of the post URI or None if failed."""
+    """Posts an image and text summary to Bluesky using the atproto library.
+
+    Uses credentials from environment variables BLUESKY_USERNAME and BLUESKY_PASSWORD.
+
+    Args:
+        image_data: The image content as bytes.
+        news_summary: The text summary to include in the post.
+        target_width: The target aspect ratio width for the image embed (default: 16).
+        target_height: The target aspect ratio height for the image embed (default: 9).
+
+    Returns:
+        The URI of the created post as a string, or None 
+        if the post fails or credentials are missing.
+    """
     post_uri = None
     if not BLUESKY_PASSWORD or not BLUESKY_USERNAME:
         logging.error("Bluesky credentials not set")
@@ -172,11 +218,14 @@ def post(image_data: bytes, news_summary: str, target_width: int = 16,
     return post_uri
 
 def run_bot_logic(url: str) -> str | None:
-    """Orchestrates scraping image URL and downloading image file
-    as bytes, and posting to Bluesky.
-    If successful, call post_to_bluesky (passing the bytes)
-    Args:       url: url to scrape image from
-    Returns:    str of the post URI or None if failed.
+    """Orchestrates the process of scraping news, summarizing it, scraping an image URL,
+    downloading the image, and posting both to Bluesky.
+
+    Args:
+        url: The URL of the main page to scrape the image from.
+
+    Returns:
+        The URI of the created Bluesky post as a string, or None if any step fails.
     """
     logging.info("Starting bot logic...")
     image_data = None
@@ -196,9 +245,16 @@ def run_bot_logic(url: str) -> str | None:
         return None
 
 def cloud_entry_point(request):
-    """Google Cloud Function entry point via Cloud Scheduler
-    Args:       request: required by GCP via http but not used here
-    Returns:    str of the post URI or None if failed.
+    """Google Cloud Function entry point triggered via HTTP (e.g., Cloud Scheduler).
+
+    Orchestrates the bot logic and returns an appropriate HTTP response.
+
+    Args:
+        request: The HTTP request object (required by GCP, but not used by the function)
+
+    Returns:
+        A tuple containing a success or error message and the corresponding HTTP status 
+        code (200 for success, 500 for failure).
     """
     logging.info("Cloud function triggered...")
     post_uri = run_bot_logic(url)
