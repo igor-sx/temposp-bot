@@ -173,7 +173,7 @@ def download_image_bytes(final_url: str) -> bytes | None:
         logging.error(f"Unexpected error fetching image: {e}")
         return None
 
-def post(image_data: bytes, news_summary: str, target_width: int = 16, 
+def post(image_data: bytes, news_summary: str, target_width: int = 24, 
          target_height: int = 9) -> str | None:
     """Posts an image and text summary to Bluesky using the atproto library.
 
