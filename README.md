@@ -1,3 +1,5 @@
+![Python](https://img.shields.io/badge/python-3.10%2B-blue) ![License](https://img.shields.io/github/license/yourusername/yourrepo)
+![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4o-informational) ![Google Cloud](https://img.shields.io/badge/Hosted%20on-Google%20Cloud-blue) ![atproto](https://img.shields.io/badge/atproto-bluesky-1da1f2) ![Last Commit](https://img.shields.io/github/last-commit/yourusername/yourrepo)
 ### English (Portuguese below)
 
 This Python script automates posting weather updates to Bluesky with a little help of AI (LLM) for summarization of text.
