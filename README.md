@@ -2,7 +2,7 @@
 ![Google Cloud](https://img.shields.io/badge/Hosted%20on-Google%20Cloud-blue) ![atproto](https://img.shields.io/badge/atproto-bluesky-1da1f2) 
 ### English (Portuguese below)
 
-This Python script automates posting weather updates to Bluesky with a little help of AI (LLM) for summarization of text.
+A Python bot that scrapes weather data, summarizes it using OpenAI’s GPT-4o-mini, and posts to Bluesky with an image using the atproto protocol. Deployed on Google Cloud Functions with secure environment configs, it showcases skills in web scraping, AI (LLM) integration, and cloud automation.
 
 **How it works:**
 
